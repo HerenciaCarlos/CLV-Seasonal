@@ -1,3 +1,6 @@
+import pandas as pd
+import numpy as np
+
 def _find_first_transactions(
     transactions,
     customer_id_col,
@@ -290,7 +293,7 @@ def summary_data_from_transaction_data_season(
         datetime_col: ['min', 'max', 'count'],
     }
     if high_season_col:
-        agg_dict["high_season_tx"] = 'sum'
+        agg_dict["high_season_col"] = 'sum'
     if monetary_value_col:
         agg_dict[monetary_value_col] = 'mean'
 
@@ -319,8 +322,8 @@ def summary_data_from_transaction_data_season(
 
     # Ensure columns are in the correct data type
     type_cast_dict = {'frequency': 'int', 'T': 'float', 'recency': 'float'}
-    if 'high_season_tx' in customers.columns:
-        type_cast_dict['high_season_tx'] = 'int'
+    if 'high_season_col' in customers.columns:
+        type_cast_dict['high_season_col'] = 'int'
     if monetary_value_col and 'monetary_value' in customers.columns:
         type_cast_dict['monetary_value'] = 'float'
     customers = customers.astype(type_cast_dict)
