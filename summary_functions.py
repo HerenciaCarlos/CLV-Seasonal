@@ -259,6 +259,9 @@ def summary_data_from_transaction_data(
     return customers[summary_columns].astype(float)
 
 
+import pandas as pd
+from tqdm import tqdm
+
 def summary_data_from_transaction_data_season(
     transactions,
     customer_id_col,
@@ -296,8 +299,9 @@ def summary_data_from_transaction_data_season(
     if monetary_value_col:
         agg_dict[monetary_value_col] = 'mean'
 
-    # Group by customer and aggregate data
-    customers = repeated_transactions.groupby(customer_id_col, sort=False).agg(agg_dict)
+    # Group by customer and aggregate data with progress bar
+    tqdm.pandas(desc="Aggregating customer data")
+    customers = repeated_transactions.groupby(customer_id_col, sort=False).progress_apply(lambda x: x.agg(agg_dict)).reset_index()
 
     # Flatten the MultiIndex columns created by agg
     customers.columns = ['_'.join(col).strip('_') for col in customers.columns.values]
@@ -326,8 +330,5 @@ def summary_data_from_transaction_data_season(
     if monetary_value_col and 'monetary_value' in customers.columns:
         type_cast_dict['monetary_value'] = 'float'
     customers = customers.astype(type_cast_dict)
-
-
     return customers
-
 
