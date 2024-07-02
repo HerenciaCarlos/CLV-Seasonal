@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import json
 def _find_first_transactions(
     transactions,
     customer_id_col,
