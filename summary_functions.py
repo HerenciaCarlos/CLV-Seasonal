@@ -261,7 +261,8 @@ def summary_data_from_transaction_data(
 
 
 import pandas as pd
-from tqdm import tqdm
+import dask.dataframe as dd
+from tqdm.dask import TqdmCallback  # Import TqdmCallback for Dask
 
 def summary_data_from_transaction_data_season(
     transactions,
@@ -275,8 +276,19 @@ def summary_data_from_transaction_data_season(
     freq_multiplier=1,
     include_first_transaction=False,
 ):
+    # Drop all NaNs from the transactions DataFrame
+    transactions = transactions.dropna().copy()  # Make a copy of the DataFrame
+    
+    # Convert columns to appropriate types for efficiency
+    transactions[datetime_col] = pd.to_datetime(transactions[datetime_col], format=datetime_format)
+    if monetary_value_col:
+        transactions[monetary_value_col] = transactions[monetary_value_col].astype(float)
+    if high_season_col and high_season_col in transactions.columns:
+        transactions[high_season_col] = transactions[high_season_col].astype(int)
+    transactions[customer_id_col] = transactions[customer_id_col].astype(str)
+
     if observation_period_end is None:
-        observation_period_end = pd.to_datetime(transactions[datetime_col].max(), format=datetime_format).to_period(freq).to_timestamp()
+        observation_period_end = transactions[datetime_col].max().to_period(freq).to_timestamp()
     else:
         observation_period_end = pd.to_datetime(observation_period_end, format=datetime_format).to_period(freq).to_timestamp()
 
@@ -285,24 +297,28 @@ def summary_data_from_transaction_data_season(
         customer_id_col,
         datetime_col,
         monetary_value_col,
-        high_season_col,  # Pass the high season column
+        high_season_col,
         datetime_format,
         observation_period_end,
         freq
     )
 
-    # Prepare aggregation
+    # Prepare aggregation dictionary
     agg_dict = {
         datetime_col: ['min', 'max', 'count'],
     }
-    if high_season_col:
+    if high_season_col and high_season_col in repeated_transactions.columns:
+        repeated_transactions["high_season_tx"] = repeated_transactions[high_season_col]
         agg_dict["high_season_tx"] = 'sum'
     if monetary_value_col:
         agg_dict[monetary_value_col] = 'mean'
 
-    # Group by customer and aggregate data with progress bar
-    tqdm.pandas(desc="Aggregating customer data")
-    customers = repeated_transactions.groupby(customer_id_col, sort=False).progress_apply(lambda x: x.agg(agg_dict)).reset_index()
+    # Convert to Dask DataFrame for parallel processing
+    ddf = dd.from_pandas(repeated_transactions, npartitions=8)  # Increase partitions for parallel processing
+
+    # Use TqdmCallback to display a progress bar during the computation
+    with TqdmCallback(desc="Processing customer data"):
+        customers = ddf.groupby(customer_id_col).agg(agg_dict).compute()
 
     # Flatten the MultiIndex columns created by agg
     customers.columns = ['_'.join(col).strip('_') for col in customers.columns.values]
@@ -311,8 +327,8 @@ def summary_data_from_transaction_data_season(
     customers["frequency"] = customers[datetime_col + "_count"] - 1 if not include_first_transaction else customers[datetime_col + "_count"]
 
     # Calculate T and recency
-    customers["T"] = (observation_period_end - pd.to_datetime(customers[datetime_col + "_min"])).dt.days / freq_multiplier
-    customers["recency"] = (pd.to_datetime(customers[datetime_col + "_max"]) - pd.to_datetime(customers[datetime_col + "_min"])).dt.days / freq_multiplier
+    customers["T"] = (observation_period_end - customers[datetime_col + "_min"]).dt.days / freq_multiplier
+    customers["recency"] = (customers[datetime_col + "_max"] - customers[datetime_col + "_min"]).dt.days / freq_multiplier
 
     # Include monetary_value if specified
     if monetary_value_col:
@@ -331,5 +347,5 @@ def summary_data_from_transaction_data_season(
     if monetary_value_col and 'monetary_value' in customers.columns:
         type_cast_dict['monetary_value'] = 'float'
     customers = customers.astype(type_cast_dict)
+    
     return customers
-

@@ -37,9 +37,10 @@ transactions = pd.read_sql(select_query, engine)
 transactions
 
 summary = summary_data_from_transaction_data_season(
+
     transactions,
-    customer_id_col='customer_id',
-    datetime_col='transaction_date',
+    customer_id_col='ID',
+    datetime_col='Datum',
     monetary_value_col='monetary_value',
     high_season_col='high_season',
     datetime_format='%Y-%m-%d',

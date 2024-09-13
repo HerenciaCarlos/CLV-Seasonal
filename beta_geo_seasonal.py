@@ -14,7 +14,6 @@ from scipy.special import expit, hyp2f1
 from pymc_marketing.clv.models.basic import CLVModel
 from pymc_marketing.clv.utils import to_xarray
 
-
 class BetaGeoModelWithSeasonality(CLVModel):
     r"""Beta-Geometric Negative Binomial Distribution (BG/NBD) model with time-varying covariate for seasonality.
 
